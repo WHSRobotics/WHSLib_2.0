@@ -1,0 +1,8 @@
+package Examples;
+
+public enum ExampleStates {
+    NAVIGATING_TO_BACKRROP,
+    NAVIGATING_TO_STACKS,
+    INTAKING_PIXELS,
+    NAVIGATING_UNDER_STAGE_BARRIERS_TO_BACKRDROP
+}
