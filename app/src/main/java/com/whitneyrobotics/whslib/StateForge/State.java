@@ -6,7 +6,7 @@ import static com.whitneyrobotics.whslib.Util.Functions.requireNotNull;
 
 import java.util.List;
 
-public abstract class State<E extends Enum<E>> {
+public class State<E extends Enum<E>> {
     private E state;
     private List<Triple<TransitionCondition, E, Action>> transitions;
     private Action onEntryAction = () -> {};
