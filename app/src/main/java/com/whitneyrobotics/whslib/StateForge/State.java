@@ -13,15 +13,27 @@ public class State<E extends Enum<E>> {
     private Action onExitAction = () -> {};
     public final boolean nonLinear;
 
+    private void validateTransitions(){
+        for (Triple<TransitionCondition, E, Action> transition : transitions) {
+            if (transition.b != null) {
+                if(transition.b == state){
+                    throw new IllegalStateException("A transition's end state should not point back to the origin state. Faulty state: " + state);
+                }
+            }
+        }
+    }
+
     public State(E state, List<Triple<TransitionCondition, E, Action>> transitions) {
         this.state = state;
         this.transitions = transitions;
+        validateTransitions();
         this.nonLinear = false;
     }
 
     public State(E state, Action onEntryAction, Action onExitAction, List<Triple<TransitionCondition, E, Action>> transitions) {
         this.state = state;
         this.transitions = transitions;
+        validateTransitions();
         this.onEntryAction = onEntryAction;
         this.onExitAction = onExitAction;
         this.nonLinear = false;
@@ -30,6 +42,7 @@ public class State<E extends Enum<E>> {
     public State(E state, Action onEntryAction, Action onExitAction, List<Triple<TransitionCondition, E, Action>> transitions, boolean nonLinear) {
         this.state = state;
         this.transitions = transitions;
+        validateTransitions();
         this.onEntryAction = onEntryAction;
         this.onExitAction = onExitAction;
         this.nonLinear = nonLinear;

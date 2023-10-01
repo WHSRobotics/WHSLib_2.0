@@ -5,6 +5,10 @@ import com.whitneyrobotics.whslib.Util.Triple;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 
 public class StateForge {
 
@@ -13,6 +17,14 @@ public class StateForge {
 
         public StateBuilder<E> state(E stateEnum){
             return new StateBuilder<>(this, stateEnum);
+        }
+
+        public <R extends Enum<R>> SubStateMachineBuilder<E, R> substate(E stateEnum){
+            return new SubStateMachineBuilder<E,R>(this, stateEnum);
+        }
+
+        public <R extends Enum<R>> SubStateMachineBuilder<E, R> nonLinearSubstate(E stateEnum){
+            return new SubStateMachineBuilder<E,R>(this, stateEnum, true);
         }
 
         public StateBuilder<E> nonLinearState(E stateEnum) {
@@ -31,14 +43,14 @@ public class StateForge {
 
     }
     public static class StateBuilder<E extends Enum<E>> {
-        private E stateEnum;
-        private boolean nonLinear;
+        protected E stateEnum;
+        protected boolean nonLinear;
 
-        private Action onEntryAction, onExitAction = null;
+        protected Action onEntryAction, onExitAction = null;
 
 
-        private StateMachineBuilder<E> host;
-        private List<Triple<TransitionCondition, E, Action>> transitions = new ArrayList<>();
+        protected StateMachineBuilder<E> host;
+        protected List<Triple<TransitionCondition, E, Action>> transitions = new ArrayList<>();
 
         private StateBuilder(StateMachineBuilder<E> host, E stateEnum){
             this.host = host;
@@ -72,12 +84,12 @@ public class StateForge {
         }
 
         public StateBuilder<E> transition(TransitionCondition condition, E nextState){
-            transitions.add(new Triple<>(condition, stateEnum, null));
+            transitions.add(new Triple<>(condition, nextState, null));
             return this;
         }
 
         public StateBuilder<E> transitionWithAction(TransitionCondition condition, E nextState, Action action){
-            transitions.add(new Triple<>(condition, stateEnum, action));
+            transitions.add(new Triple<>(condition, nextState, action));
             return this;
         }
 
@@ -97,8 +109,52 @@ public class StateForge {
             host.states.add(new State(stateEnum, onEntryAction, onExitAction, transitions, nonLinear));
             return host;
         }
+    }
 
+    public static class SubStateMachineBuilder<E extends Enum<E>, R extends Enum<R>> extends StateBuilder<E> {
+        private SubstateMachine.TRANSITION_BEHAVIOR transitionBehavior = SubstateMachine.TRANSITION_BEHAVIOR.PERSIST_INTERNAL_STATE;
+        private StateMachine<R> embeddedMachine;
+        private SubStateMachineBuilder(StateMachineBuilder<E> host, E stateEnum) {
+            super(host, stateEnum);
+        }
 
+        private SubStateMachineBuilder(StateMachineBuilder<E> host, E stateEnum, boolean nonLinear) {
+            super(host, stateEnum, nonLinear);
+        }
+
+        public SubStateMachineBuilder<E,R> transitionBehavior(SubstateMachine.TRANSITION_BEHAVIOR behavior) {
+            this.transitionBehavior = transitionBehavior;
+            return this;
+        }
+
+        /**
+         * @param builderCommands A lambda function that accepts a sequence of commands to build the embedded state machine
+         * @return the instance
+         */
+        public SubStateMachineBuilder<E,R> buildEmbeddedStateMachine(SubstateBuilder<E,R> builderCommands) {
+            embeddedMachine = builderCommands.useCommands(new StateMachineBuilder<>()).build();
+            return this;
+        }
+
+        public SubStateMachineBuilder<E,R> transitionWithEmbeddedStateMachine(SubstateTester<R> conditionProvider, E nextState, Action action) {
+            transitionWithAction(() -> conditionProvider.test(embeddedMachine), nextState, action);
+            return this;
+        }
+        public SubStateMachineBuilder<E,R> transitionWithEmbeddedStateMachine(SubstateTester<R> conditionProvider, E nextState) {
+            transition(() -> conditionProvider.test(embeddedMachine), nextState);
+            return this;
+        }
+        public SubStateMachineBuilder<E,R> transitionWithEmbeddedStateMachine(SubstateTester<R> conditionProvider) {
+            transitionLinear(() -> conditionProvider.test(embeddedMachine));
+            return this;
+        }
+
+        @Override
+        public StateMachineBuilder<E> fin() {
+            if(embeddedMachine == null) throw new IllegalStateException("Embedded state machine not built. Use .buildEmbeddedStateMachine() to configure.");
+            host.states.add(new SubstateMachine<>(embeddedMachine, stateEnum, onEntryAction, onExitAction, transitions, nonLinear)._setTransitionBehavior(transitionBehavior));
+            return host;
+        }
     }
 
     public static <E> StateMachineBuilder StateMachine(){

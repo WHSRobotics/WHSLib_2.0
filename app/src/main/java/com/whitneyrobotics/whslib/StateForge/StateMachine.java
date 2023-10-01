@@ -3,6 +3,7 @@ package com.whitneyrobotics.whslib.StateForge;
 import com.whitneyrobotics.whslib.Util.Action;
 import com.whitneyrobotics.whslib.Util.Triple;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -11,8 +12,8 @@ import java.util.List;
  * Learn more here: https://github.com/StateFactory-Dev/StateFactory
  */
 public class StateMachine<E extends Enum<E>> {
-    public List<State<E>> linearStates;
-    public List<State<E>> nonLinearStates;
+    public List<State<E>> linearStates = new ArrayList<>();
+    public List<State<E>> nonLinearStates = new ArrayList<>();
 
     /**
      * Hashmaps to improve lookup time for states
@@ -29,10 +30,10 @@ public class StateMachine<E extends Enum<E>> {
         for (State s: states){
             if (s.nonLinear){
                 nonLinearStates.add(s);
-                nonLinearStateMap.put((E)s.getState(), nonLinearStates.size() - 1);
+                nonLinearStateMap.put((E)s.getState(), nonLinearStates.indexOf(s));
             } else {
                 linearStates.add(s);
-                linearStateMap.put((E)s.getState(), linearStates.size() - 1);
+                linearStateMap.put((E)s.getState(), linearStates.indexOf(s));
             }
         }
         currentState = linearStates.get(0);
@@ -48,9 +49,14 @@ public class StateMachine<E extends Enum<E>> {
         if(currentState == null){
             active = false;
         } else active = true;
-        currentState.getOnEntryAction().call();
-        ranEnterCallback = true;
-        synchronizeAllSubStateMachines();
+        if(currentState.getOnEntryAction() != null){
+            currentState.getOnEntryAction().call();
+            ranEnterCallback = true;
+        }
+    }
+
+    public boolean isActive(){
+        return active;
     }
 
     public void stop(){
@@ -73,8 +79,12 @@ public class StateMachine<E extends Enum<E>> {
 
     public void update(){
         if(!active) return;
+        if(currentState instanceof SubstateMachine){
+            if(!((SubstateMachine) currentState).isActive()) ((SubstateMachine) currentState).synchronize(active);
+            ((SubstateMachine) currentState).update();
+        }
         Action exitAction = null;
-        State nextState = null;
+        State<E> nextState = null;
         boolean willTransition = false;
         for (Triple<TransitionCondition, E, Action> transitionInfo : currentState.getTransitions()){
             if(transitionInfo.a instanceof TimedTransition && !((TimedTransition) transitionInfo.a).timerStarted()){
@@ -87,11 +97,11 @@ public class StateMachine<E extends Enum<E>> {
                 if(transitionInfo.b != null){
                     try {
                         nextState = linearStates.get(linearStateMap.get(transitionInfo.b));
-                    } catch (NullPointerException e){ //if no linear state is specified, it must be a fallback transiion
+                    } catch (NullPointerException e){ //if no linear state is specified, it must be a nonlinear transition
                         nextState = nonLinearStates.get(nonLinearStateMap.get(transitionInfo.b));
                     }
                 } else {
-                    nextState = linearStates.get(index+1 % linearStates.size());
+                    nextState = linearStates.get((index+1) % linearStates.size());
                 }
                 willTransition = true;
                 break;
@@ -109,11 +119,11 @@ public class StateMachine<E extends Enum<E>> {
             } else if (currentState.getOnExitAction() != null) {
                 currentState.getOnExitAction().call();
             }
-
+            State<E> pastState = currentState;
             currentState = nextState;
             ranEnterCallback = false;
-            //reset all timers of the new state
-            for (Triple<TransitionCondition, E, Action> transitionInfo : currentState.getTransitions()) {
+            //reset all timers of the past state
+            for (Triple<TransitionCondition, E, Action> transitionInfo : pastState.getTransitions()) {
                 if (transitionInfo.a instanceof TimedTransition && ((TimedTransition) transitionInfo.a).timerStarted()) {
                     ((TimedTransition) transitionInfo.a).reset();
                 }

@@ -29,7 +29,7 @@ public class SubstateMachine<I extends Enum<I>, R extends Enum<R>> extends State
         embeddedStateMachine = new StateMachine<>(embeddedStateList);
         setOnEntryAction(() -> {
             checkTransitionBehavior();
-            onEntryAction.call();
+            if(this.getOnEntryAction() != null) onEntryAction.call();
         });
     }
 
@@ -38,12 +38,26 @@ public class SubstateMachine<I extends Enum<I>, R extends Enum<R>> extends State
         embeddedStateMachine = new StateMachine<>(embeddedStateList);
         setOnEntryAction(() -> {
             checkTransitionBehavior();
-            onEntryAction.call();
+            if(onEntryAction != null) onEntryAction.call();
+        });
+    }
+
+    public SubstateMachine(StateMachine<R> embeddedStateMachine, Enum<I> state, Action onEntryAction, Action onExitAction, List transitions, boolean nonLinear){
+        super(state, onEntryAction, onExitAction, transitions, nonLinear);
+        this.embeddedStateMachine = embeddedStateMachine;
+        setOnEntryAction(() -> {
+            checkTransitionBehavior();
+            if(onEntryAction != null) onEntryAction.call();
         });
     }
 
     public void setTransitionBehavior(TRANSITION_BEHAVIOR transitionBehavior){
         this.transitionBehavior = transitionBehavior;
+    }
+
+    public SubstateMachine<I,R> _setTransitionBehavior(TRANSITION_BEHAVIOR transitionBehavior){
+        this.transitionBehavior = transitionBehavior;
+        return this;
     }
 
     public void synchronize(boolean active){
@@ -74,11 +88,14 @@ public class SubstateMachine<I extends Enum<I>, R extends Enum<R>> extends State
     public void setOnEntryAction(Action onEntryAction) {
         super.setOnEntryAction(() -> {
             checkTransitionBehavior();
-            onEntryAction.call();
+            if(onEntryAction != null) onEntryAction.call();
         });
     }
 
     public void update(){
         embeddedStateMachine.update();
+    }
+    public boolean isActive(){
+        return embeddedStateMachine.isActive();
     }
 }

@@ -17,7 +17,7 @@ public class TimedTransition implements TransitionCondition {
     }
 
     public boolean timerStarted(){
-        return time != 0;
+        return startTime != 0;
     }
 
     public void reset(){
